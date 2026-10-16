@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PiggyTime PWA - แอปช่วยแจ้งเตือนการเก็บเงิน</title>
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PiggyTime">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2953/2953361.png">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            emerald: '#10b981',
+                            teal: '#14b8a6',
+                            violet: '#8b5cf6',
+                            cyan: '#06b6d4',
+                            dark: '#0f172a',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Kanit', 'Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts & FontAwesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            font-family: 'Kanit', sans-serif;
+            padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+            padding-top: env(safe-area-inset-top);
+        }
+        .glass-panel {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .glow-emerald {
+            box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.4);
+        }
+        .touch-active:active {
+            transform: scale(0.95);
+            transition: transform 0.1s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen selection:bg-teal-500 selection:text-white">
+
+    <!-- Background Ambient Glow -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute -top-24 -left-24 w-72 h-72 bg-teal-500/15 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/2 -right-24 w-72 h-72 bg-violet-500/15 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-24 left-1/4 w-72 h-72 bg-cyan-500/15 rounded-full blur-3xl"></div>
+    </div>
+
+    <header class="sticky top-0 z-30 glass-panel border-b border-slate-800/80 bg-slate-950/80">
+        <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-400 via-teal-500 to-cyan-500 flex items-center justify-center text-slate-950 font-bold text-lg shadow-lg shadow-emerald-500/30">
+                    <i class="fa-solid fa-piggy-bank"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent leading-tight">
+                        PiggyTime PWA
+                    </h1>
+                    <p class="text-[10px] text-slate-400">แอปแจ้งเตือนเก็บเงินสำหรับมือถือ</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button id="enableNotificationBtn" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 touch-active flex items-center gap-1.5">
+                    <i id="notifIcon" class="fa-solid fa-bell-slash text-amber-400"></i>
+                    <span id="notifStatusText" class="text-[11px] font-medium hidden sm:inline">ขอสิทธิ์เตือน</span>
+                </button>
+                <button id="showInstallGuideBtn" class="p-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 text-xs font-bold touch-active flex items-center gap-1">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                    <span class="text-[11px]">วิธีลงแอป</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 pt-4 space-y-4">
+
+        <!-- TAB 1: MAIN DASHBOARD -->
+        <div id="tab-dashboard" class="tab-content space-y-4">
+            
+            <!-- Goal Progress Card -->
+            <div class="p-5 rounded-3xl bg-slate-900/90 border border-slate-800/80 shadow-2xl relative overflow-hidden">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">เป้าหมายปัจจุบัน</span>
+                        <h2 id="goalTitleDisplay" class="text-xl font-extrabold text-white mt-1">ซื้อหูฟังไร้สาย</h2>
+                    </div>
+                    <button id="editGoalBtn" class="text-slate-400 hover:text-white p-1">
+                        <i class="fa-solid fa-pen-to-square text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- Savings Progress -->
+                <div class="space-y-2 my-4">
+                    <div class="flex justify-between items-baseline text-xs">
+                        <span class="text-slate-400">ความคืบหน้า</span>
+                        <span id="progressPercent" class="font-bold text-emerald-400">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-950 h-3 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                        <div id="progressBar" class="bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 h-full rounded-full transition-all duration-500 w-0"></div>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/60 text-xs">
+                    <div class="p-2.5 rounded-2xl bg-slate-950/60">
+                        <p class="text-[10px] text-slate-400">สะสมแล้ว</p>
+                        <p id="currentSavingsDisplay" class="text-lg font-bold text-emerald-400">฿0</p>
+                    </div>
+                    <div class="p-2.5 rounded-2xl bg-slate-950/60">
+                        <p class="text-[10px] text-slate-400">เป้าหมายทั้งหมด</p>
+                        <p id="targetSavingsDisplay" class="text-lg font-bold text-white">฿3,000</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Next Scheduled Alarm Banner -->
+            <div class="p-4 rounded-2xl bg-slate-900/80 border border-cyan-500/30 flex items-center justify-between relative overflow-hidden">
+                <div class="space-y-0.5">
+                    <div class="flex items-center gap-1.5 text-cyan-400 text-xs font-semibold">
+                        <i class="fa-regular fa-clock"></i>
+                        <span id="nextAlarmTimeLabel">รอบถัดไป: --:-- น.</span>
+                    </div>
+                    <p id="nextAlarmDetailText" class="text-xs text-slate-300">เตือนหยอดกระปุกรอบค่ำ</p>
+                </div>
+                <div class="text-right">
+                    <div id="countdownDisplay" class="font-mono text-xl font-extrabold text-cyan-400 tracking-wider">--:--:--</div>
+                    <span class="text-[9px] text-slate-400 uppercase">เวลาที่เหลือ</span>
+                </div>
+            </div>
+
+            <!-- Quick Action Buttons -->
+            <div class="grid grid-cols-2 gap-3">
+                <button id="quickSaveBtn" class="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 touch-active">
+                    <i class="fa-solid fa-coins text-lg"></i>
+                    <span>หยอดกระปุกตอนนี้</span>
+                </button>
+                <button id="simulateAlarmBtn" class="py-3.5 px-4 rounded-2xl bg-slate-900 border border-slate-800 text-slate-200 font-bold text-sm flex items-center justify-center gap-2 touch-active">
+                    <i class="fa-solid fa-bell text-amber-400"></i>
+                    <span>ทดสอบการเตือน</span>
+                </button>
+            </div>
+
+            <!-- Info Summary Box -->
+            <div class="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 flex justify-between items-center text-xs">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center text-lg font-bold">
+                        🔥
+                    </div>
+                    <div>
+                        <p class="font-bold text-white">วินัยการออม (Streak)</p>
+                        <p class="text-[11px] text-slate-400">ออมต่อเนื่อง <span id="streakDisplay" class="text-orange-400 font-bold">0</span> วันติดกัน</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-400">ยอดออมต่อครั้ง</p>
+                    <p id="perStepDisplay" class="font-bold text-emerald-400 text-sm">฿50</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: ALARM SCHEDULE SETTINGS -->
+        <div id="tab-alarms" class="tab-content space-y-3 hidden">
+            <div class="flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-clock text-cyan-400"></i>
+                    รายการตั้งเวลาเตือน
+                </h3>
+                <button id="addAlarmBtn" class="px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold touch-active flex items-center gap-1">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>เพิ่มเวลา</span>
+                </button>
+            </div>
+
+            <div id="alarmsContainer" class="space-y-2.5">
+                <!-- Dynamically rendered alarms -->
+            </div>
+        </div>
+
+        <!-- TAB 3: HISTORY LOG -->
+        <div id="tab-history" class="tab-content space-y-3 hidden">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-emerald-400"></i>
+                ประวัติการหยอดกระปุก
+            </h3>
+            <div id="historyList" class="space-y-2">
+                <!-- Dynamically rendered history -->
+            </div>
+        </div>
+
+    </main>
+
+    <nav class="fixed bottom-0 left-0 right-0 z-30 glass-panel border-t border-slate-800 bg-slate-950/90 pb-safe">
+        <div class="max-w-md mx-auto flex justify-around items-center py-2.5 px-2 text-xs">
+            <button id="nav-dashboard" onclick="switchTab('dashboard')" class="nav-btn flex flex-col items-center gap-1 text-emerald-400">
+                <i class="fa-solid fa-house-chimney text-lg"></i>
+                <span class="text-[10px] font-medium">หน้าหลัก</span>
+            </button>
+            <button id="nav-alarms" onclick="switchTab('alarms')" class="nav-btn flex flex-col items-center gap-1 text-slate-500">
+                <i class="fa-solid fa-clock text-lg"></i>
+                <span class="text-[10px] font-medium">ตั้งเวลา</span>
+            </button>
+            <button id="nav-history" onclick="switchTab('history')" class="nav-btn flex flex-col items-center gap-1 text-slate-500">
+                <i class="fa-solid fa-receipt text-lg"></i>
+                <span class="text-[10px] font-medium">ประวัติ</span>
+            </button>
+            <button id="navSettingsBtn" class="nav-btn flex flex-col items-center gap-1 text-slate-500">
+                <i class="fa-solid fa-sliders text-lg"></i>
+                <span class="text-[10px] font-medium">ตั้งค่า</span>
+            </button>
+        </div>
+    </nav>
+
+    
+    <!-- MODAL 1: Trigger Savings Alarm -->
+    <div id="alarmTriggerModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border-t sm:border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform translate-y-full sm:translate-y-0 sm:scale-95 transition-transform duration-300 text-center space-y-4">
+            <div class="w-16 h-16 rounded-3xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-3xl mx-auto border border-amber-500/30 animate-bounce">
+                <i class="fa-solid fa-bell"></i>
+            </div>
+            
+            <div class="space-y-1">
+                <h3 id="triggerAlarmLabelText" class="text-lg font-extrabold text-white">ถึงเวลาหยอดกระปุกแล้ว!</h3>
+                <p class="text-xs text-slate-400">เป้าหมาย: <span id="modalGoalName" class="text-slate-200 font-medium">ซื้อหูฟังไร้สาย</span></p>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-1">
+                <p class="text-[10px] text-slate-400">ยอดที่ต้องหยอดในรอบนี้</p>
+                <p id="modalAmountDisplay" class="text-3xl font-black text-emerald-400">฿50</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <button id="modalSnoozeBtn" class="py-3 rounded-2xl bg-slate-800 text-slate-300 font-bold text-xs touch-active">
+                    เลื่อนเตือน
+                </button>
+                <button id="modalSaveBtn" class="py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 touch-active">
+                    หยอดกระปุกแล้ว 🎉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Success Celebration -->
+    <div id="successModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl transform scale-95 transition-transform duration-300 text-center space-y-5">
+            <div class="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-4xl mx-auto border border-emerald-500/30 glow-emerald">
+                <i class="fa-solid fa-check"></i>
+            </div>
+
+            <div class="space-y-1">
+                <h3 class="text-2xl font-black text-white">เก็บตังสำเร็จ! 🎉</h3>
+                <p class="text-xs text-slate-400">เก่งมาก! คุณเข้าใกล้เป้าหมายไปอีกขั้นแล้ว</p>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex justify-around items-center">
+                <div>
+                    <p class="text-[10px] text-slate-400">ออมเพิ่ม</p>
+                    <p id="successAmountText" class="text-lg font-bold text-emerald-400">+฿50</p>
+                </div>
+                <div class="h-8 w-px bg-slate-800"></div>
+                <div>
+                    <p class="text-[10px] text-slate-400">ออมต่อเนื่อง</p>
+                    <p class="text-lg font-bold text-orange-400"><span id="successStreakCount">1</span> วัน 🔥</p>
+                </div>
+            </div>
+
+            <button id="closeSuccessBtn" class="w-full py-3.5 rounded-2xl bg-emerald-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 touch-active">
+                ตกลง / ลุยต่อ!
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Add / Edit Alarm Form -->
+    <div id="alarmFormModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border-t sm:border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform translate-y-full sm:translate-y-0 sm:scale-95 transition-transform duration-300 space-y-4">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white">ตั้งเวลาเตือนใหม่</h3>
+                <button id="closeAlarmFormBtn" class="text-slate-400 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="alarmForm" class="space-y-3.5 text-xs">
+                <input type="hidden" id="inputAlarmId">
+                <div>
+                    <label class="block text-slate-400 mb-1">ชื่อการเตือน</label>
+                    <input type="text" id="inputAlarmLabel" required placeholder="เช่น เตือนหยอดกระปุกรอบเช้า" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-cyan-500">
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1">เวลาเตือน</label>
+                    <input type="time" id="inputAlarmTime" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white font-mono text-base focus:outline-none focus:border-cyan-500">
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1">การซ้ำ</label>
+                    <select id="inputAlarmRepeat" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-cyan-500">
+                        <option value="daily">ทุกวัน (Daily)</option>
+                        <option value="once">ครั้งเดียว</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button type="button" id="cancelAlarmBtn" class="py-3 rounded-2xl bg-slate-800 text-slate-300 font-bold">ยกเลิก</button>
+                    <button type="submit" class="py-3 rounded-2xl bg-cyan-500 text-slate-950 font-bold shadow-lg shadow-cyan-500/20">บันทึกเวลา</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 4: Goal Settings -->
+    <div id="settingsModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border-t sm:border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform translate-y-full sm:translate-y-0 sm:scale-95 transition-transform duration-300 space-y-4">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white">ตั้งค่าเป้าหมายการออม</h3>
+                <button id="closeSettingsBtn" class="text-slate-400 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="settingsForm" class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1">ชื่อเป้าหมาย</label>
+                    <input type="text" id="inputGoalTitle" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">ยอดเงินเป้าหมาย (บาท)</label>
+                    <input type="number" id="inputTargetAmount" required min="1" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">ยอดหยอดกระปุกต่อครั้ง (บาท)</label>
+                    <input type="number" id="inputPerStep" required min="1" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button type="button" id="cancelSettingsBtn" class="py-3 rounded-2xl bg-slate-800 text-slate-300 font-bold">ยกเลิก</button>
+                    <button type="submit" class="py-3 rounded-2xl bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 5: Mobile Install Guide -->
+    <div id="installGuideModal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/85 backdrop-blur-md opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-900 border-t sm:border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl transform translate-y-full sm:translate-y-0 sm:scale-95 transition-transform duration-300 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-download text-emerald-400"></i>
+                    วิธีติดตั้งแอปบนมือถือ
+                </h3>
+                <button id="closeInstallGuideBtn" class="text-slate-400 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Operating System Tabs Switcher -->
+            <div class="flex bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                <button id="tabIosBtn" onclick="switchGuideOs('ios')" class="w-1/2 py-2 rounded-xl text-xs font-bold text-emerald-400 bg-slate-800 shadow transition-all flex items-center justify-center gap-1.5">
+                    <i class="fa-brands fa-apple text-sm"></i>
+                    <span>iPhone / iOS</span>
+                </button>
+                <button id="tabAndroidBtn" onclick="switchGuideOs('android')" class="w-1/2 py-2 rounded-xl text-xs font-bold text-slate-400 transition-all flex items-center justify-center gap-1.5">
+                    <i class="fa-brands fa-android text-sm"></i>
+                    <span>Android</span>
+                </button>
+            </div>
+
+            <!-- iOS Instructions -->
+            <div id="iosGuideContent" class="space-y-3.5">
+                <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[11px] text-amber-300 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-400 text-sm"></i>
+                    <span>ต้องเปิดผ่านแอป <strong>Safari</strong> บน iPhone เท่านั้น</span>
+                </div>
+
+                <div class="space-y-2.5 text-xs text-slate-300">
+                    <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                        <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">1</span>
+                        <div>
+                            <p class="font-medium text-white">กดปุ่ม "แชร์" (Share)</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">กดสัญลักษณ์รูปสี่เหลี่ยมที่มีลูกศรชี้ขึ้น <i class="fa-solid fa-share-from-square text-cyan-400"></i> ที่แถบด้านล่างของ Safari</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                        <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">2</span>
+                        <div>
+                            <p class="font-medium text-white">เลือก "เพิ่มไปยังหน้าจอโฮม"</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">เลื่อนเมนูลงมาด้านล่าง แล้วกดเลือก <strong>"Add to Home Screen"</strong> <i class="fa-regular fa-square-plus text-emerald-400"></i></p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                        <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">3</span>
+                        <div>
+                            <p class="font-medium text-white">กด "เพิ่ม" (Add)</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">กดปุ่ม <strong>"เพิ่ม"</strong> ที่มุมขวาบน ไอคอนแอปจะไปปรากฏบนหน้าจอมือถือทันที!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Android Instructions -->
+            <div id="androidGuideContent" class="space-y-3.5 hidden">
+                <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-[11px] text-emerald-300 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-emerald-400 text-sm"></i>
+                    <span>แนะนำให้เปิดผ่านแอป <strong>Chrome</strong> บนมือถือ</span>
+                </div>
+
+                <div class="space-y-2.5 text-xs text-slate-300">
+                    <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                        <span class="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">1</span>
+                        <div>
+                            <p class="font-medium text-white">กดปุ่มเมนู 3 จุด (⋮)</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">กดไอคอนจุด 3 จุดที่มุมขวาบนสุดของเบราว์เซอร์ Chrome</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                        <span class="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">2</span>
+                        <div>
+                            <p class="font-medium text-white">เลือก "ติดตั้งแอป" หรือ "เพิ่มลงในหน้าจอโฮม"</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">กดเลือก <strong>"Install app"</strong> หรือ <strong>"Add to Home screen"</strong></p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-3 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                        <span class="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-xs shrink-0">3</span>
+                        <div>
+                            <p class="font-medium text-white">กดยืนยันการติดตั้ง</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">กดยืนยัน ระบบจะติดตั้งไอคอนแอปไว้บนหน้าจอมือถือของคุณทันที</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="gotItBtn" class="w-full py-3 rounded-2xl bg-emerald-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-emerald-500/20 touch-active">
+                เข้าใจแล้ว / ปิดหน้าต่าง
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Default App State
+        const DEFAULT_STATE = {
+            goalTitle: 'ซื้อหูฟังไร้สาย',
+            targetAmount: 3000,
+            currentSavings: 0,
+            perStepAmount: 50,
+            streakCount: 0,
+            lastSavedDate: null,
+            alarms: [
+                { id: '1', label: 'เตือนหยอดกระปุกรอบเช้า', time: '09:00', repeat: 'daily', active: true },
+                { id: '2', label: 'เตือนหยอดกระปุกรอบค่ำ', time: '20:00', repeat: 'daily', active: true }
+            ],
+            history: []
+        };
+
+        let state = JSON.parse(localStorage.getItem('piggy_pwa_mobile_data')) || DEFAULT_STATE;
+        let activeTriggeredAlarm = null;
+        let audioCtxUnlocked = false;
+
+        // Mobile Haptic Feedback Helper
+        function triggerHaptic(type = 'light') {
+            if ('vibrate' in navigator) {
+                if (type === 'light') navigator.vibrate(30);
+                else if (type === 'heavy') navigator.vibrate([50, 50, 50]);
+                else if (type === 'success') navigator.vibrate([40, 60, 100]);
+            }
+        }
+
+        // Web Audio API Audio Synthesizer
+        const soundFx = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+            playAlarm() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                [0, 0.2, 0.4].forEach((delay) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now + delay);
+                    osc.frequency.exponentialRampToValueAtTime(1320, now + delay + 0.15);
+                    gain.gain.setValueAtTime(0.3, now + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + delay + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + delay);
+                    osc.stop(now + delay + 0.15);
+                });
+            },
+            playSuccess() {
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, index) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + (index * 0.08));
+                    gain.gain.setValueAtTime(0.25, now + (index * 0.08));
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + (index * 0.08) + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + (index * 0.08));
+                    osc.stop(now + (index * 0.08) + 0.3);
+                });
+            }
+        };
+
+        // DOM Elements
+        const elements = {
+            goalTitleDisplay: document.getElementById('goalTitleDisplay'),
+            progressPercent: document.getElementById('progressPercent'),
+            progressBar: document.getElementById('progressBar'),
+            currentSavingsDisplay: document.getElementById('currentSavingsDisplay'),
+            targetSavingsDisplay: document.getElementById('targetSavingsDisplay'),
+            perStepDisplay: document.getElementById('perStepDisplay'),
+            streakDisplay: document.getElementById('streakDisplay'),
+            alarmsContainer: document.getElementById('alarmsContainer'),
+            historyList: document.getElementById('historyList'),
+            nextAlarmTimeLabel: document.getElementById('nextAlarmTimeLabel'),
+            countdownDisplay: document.getElementById('countdownDisplay'),
+            nextAlarmDetailText: document.getElementById('nextAlarmDetailText'),
+
+            // Modals
+            alarmFormModal: document.getElementById('alarmFormModal'),
+            alarmTriggerModal: document.getElementById('alarmTriggerModal'),
+            successModal: document.getElementById('successModal'),
+            settingsModal: document.getElementById('settingsModal'),
+            installGuideModal: document.getElementById('installGuideModal'),
+
+            // Form Inputs
+            alarmForm: document.getElementById('alarmForm'),
+            inputAlarmId: document.getElementById('inputAlarmId'),
+            inputAlarmLabel: document.getElementById('inputAlarmLabel'),
+            inputAlarmTime: document.getElementById('inputAlarmTime'),
+            inputAlarmRepeat: document.getElementById('inputAlarmRepeat'),
+            triggerAlarmLabelText: document.getElementById('triggerAlarmLabelText'),
+            modalGoalName: document.getElementById('modalGoalName'),
+            modalAmountDisplay: document.getElementById('modalAmountDisplay'),
+            successAmountText: document.getElementById('successAmountText'),
+            successStreakCount: document.getElementById('successStreakCount'),
+            settingsForm: document.getElementById('settingsForm'),
+
+            // Notification UI
+            enableNotificationBtn: document.getElementById('enableNotificationBtn'),
+            notifIcon: document.getElementById('notifIcon'),
+            notifStatusText: document.getElementById('notifStatusText'),
+
+            // Buttons
+            simulateAlarmBtn: document.getElementById('simulateAlarmBtn'),
+            quickSaveBtn: document.getElementById('quickSaveBtn'),
+            addAlarmBtn: document.getElementById('addAlarmBtn'),
+            modalSaveBtn: document.getElementById('modalSaveBtn'),
+            modalSnoozeBtn: document.getElementById('modalSnoozeBtn'),
+            closeSuccessBtn: document.getElementById('closeSuccessBtn'),
+            navSettingsBtn: document.getElementById('navSettingsBtn'),
+            editGoalBtn: document.getElementById('editGoalBtn'),
+            closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+            cancelSettingsBtn: document.getElementById('cancelSettingsBtn'),
+            closeAlarmFormBtn: document.getElementById('closeAlarmFormBtn'),
+            cancelAlarmBtn: document.getElementById('cancelAlarmBtn'),
+            showInstallGuideBtn: document.getElementById('showInstallGuideBtn'),
+            closeInstallGuideBtn: document.getElementById('closeInstallGuideBtn'),
+            gotItBtn: document.getElementById('gotItBtn')
+        };
+
+        // Save State
+        function saveState() {
+            localStorage.setItem('piggy_pwa_mobile_data', JSON.stringify(state));
+            renderUI();
+        }
+
+        // Render Main UI
+        function renderUI() {
+            elements.goalTitleDisplay.textContent = state.goalTitle;
+            elements.currentSavingsDisplay.textContent = `฿${state.currentSavings.toLocaleString()}`;
+            elements.targetSavingsDisplay.textContent = `฿${state.targetAmount.toLocaleString()}`;
+            elements.perStepDisplay.textContent = `฿${state.perStepAmount.toLocaleString()}`;
+            elements.streakDisplay.textContent = state.streakCount;
+
+            const percentage = Math.min(100, Math.round((state.currentSavings / state.targetAmount) * 100)) || 0;
+            elements.progressPercent.textContent = `${percentage}%`;
+            elements.progressBar.style.width = `${percentage}%`;
+
+            renderAlarmsList();
+            renderHistoryList();
+            updateNotificationBtnUI();
+        }
+
+        // Render Alarm Cards
+        function renderAlarmsList() {
+            if (state.alarms.length === 0) {
+                elements.alarmsContainer.innerHTML = `
+                    <div class="text-center py-8 bg-slate-950/40 rounded-2xl border border-slate-800 text-slate-500 text-xs">
+                        ยังไม่มีรายการตั้งเวลา กดปุ่ม "เพิ่มเวลา" ด้านบนเพื่อเริ่มต้น
+                    </div>`;
+                return;
+            }
+
+            elements.alarmsContainer.innerHTML = state.alarms.map(alarm => `
+                <div class="p-3.5 rounded-2xl bg-slate-950/80 border ${alarm.active ? 'border-cyan-500/30' : 'border-slate-800 opacity-60'} flex justify-between items-center">
+                    <div class="space-y-0.5">
+                        <span class="text-[10px] px-2 py-0.5 rounded-md ${alarm.active ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'bg-slate-800 text-slate-400'} font-medium">
+                            ${alarm.repeat === 'daily' ? 'ทุกวัน' : 'ครั้งเดียว'}
+                        </span>
+                        <div class="text-2xl font-black font-mono text-white pt-1">${alarm.time} <span class="text-[10px] font-sans text-slate-400">น.</span></div>
+                        <div class="text-xs text-slate-300">${alarm.label}</div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" onchange="toggleAlarm('${alarm.id}')" ${alarm.active ? 'checked' : ''} class="sr-only peer">
+                            <div class="w-10 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                        </label>
+                        <button onclick="deleteAlarm('${alarm.id}')" class="p-2 text-slate-500 hover:text-rose-400 touch-active">
+                            <i class="fa-solid fa-trash-can text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Render History Items
+        function renderHistoryList() {
+            if (state.history.length === 0) {
+                elements.historyList.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 text-xs">
+                        ยังไม่มีบันทึกประวัติการหยอดกระปุก
+                    </div>`;
+                return;
+            }
+
+            elements.historyList.innerHTML = state.history.map(item => `
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-xs">
+                            +
+                        </div>
+                        <div>
+                            <div class="font-medium text-slate-200">หยอดกระปุกสำเร็จ</div>
+                            <div class="text-[10px] text-slate-400">${item.datetime}</div>
+                        </div>
+                    </div>
+                    <span class="font-bold text-emerald-400">+฿${item.amount.toLocaleString()}</span>
+                </div>
+            `).join('');
+        }
+
+        // Tab Navigation Switcher
+        window.switchTab = function(tabName) {
+            triggerHaptic('light');
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.className = 'nav-btn flex flex-col items-center gap-1 text-slate-500');
+
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            const targetNav = document.getElementById(`nav-${tabName}`);
+            if (targetNav) {
+                targetNav.className = 'nav-btn flex flex-col items-center gap-1 text-emerald-400';
+            }
+        };
+
+        // Alarm Toggle & Delete
+        window.toggleAlarm = function(id) {
+            triggerHaptic('light');
+            const alarm = state.alarms.find(a => a.id === id);
+            if (alarm) {
+                alarm.active = !alarm.active;
+                saveState();
+            }
+        };
+
+        window.deleteAlarm = function(id) {
+            triggerHaptic('heavy');
+            state.alarms = state.alarms.filter(a => a.id !== id);
+            saveState();
+        };
+
+        // Open Add Alarm Modal
+        function openAddAlarmModal() {
+            triggerHaptic('light');
+            elements.inputAlarmId.value = '';
+            elements.inputAlarmLabel.value = 'เตือนหยอดกระปุก';
+            elements.inputAlarmTime.value = '12:00';
+            openModal(elements.alarmFormModal);
+        }
+
+        // Notification Permission Request
+        function requestNotificationPermission() {
+            triggerHaptic('light');
+            if (!('Notification' in window)) {
+                alert('เบราว์เซอร์มือถือนี้ไม่รองรับ Notification');
+                return;
+            }
+            Notification.requestPermission().then(() => {
+                updateNotificationBtnUI();
+            });
+        }
+
+        function updateNotificationBtnUI() {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                elements.notifIcon.className = 'fa-solid fa-bell text-emerald-400';
+                elements.notifStatusText.textContent = 'เปิดเตือนแล้ว';
+            } else {
+                elements.notifIcon.className = 'fa-solid fa-bell-slash text-amber-400';
+                elements.notifStatusText.textContent = 'ขอสิทธิ์เตือน';
+            }
+        }
+
+        function sendBrowserNotification(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: body,
+                    icon: 'https://cdn-icons-png.flaticon.com/512/2953/2953361.png'
+                });
+            }
+        }
+
+        // Trigger Alarm Event
+        function triggerAlarm(alarmObj) {
+            triggerHaptic('heavy');
+            activeTriggeredAlarm = alarmObj || { label: 'เตือนหยอดกระปุก' };
+            
+            elements.triggerAlarmLabelText.textContent = activeTriggeredAlarm.label;
+            elements.modalGoalName.textContent = state.goalTitle;
+            elements.modalAmountDisplay.textContent = `฿${state.perStepAmount.toLocaleString()}`;
+
+            soundFx.playAlarm();
+            sendBrowserNotification('⏰ ถึงเวลาหยอดกระปุก!', `${activeTriggeredAlarm.label} - สะสมเพื่อ ${state.goalTitle}`);
+            openModal(elements.alarmTriggerModal);
+        }
+
+        // Record Savings Success Event
+        function handleSaveMoney() {
+            triggerHaptic('success');
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+            const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const datetimeFormatted = `${dateStr} เวลา ${timeStr} น.`;
+
+            // Calculate Streak
+            const todayStr = now.toDateString();
+            if (state.lastSavedDate) {
+                const lastDate = new Date(state.lastSavedDate);
+                const diffDays = Math.ceil(Math.abs(now - lastDate) / (1000 * 60 * 60 * 24));
+                if (diffDays === 1) state.streakCount += 1;
+                else if (diffDays > 1) state.streakCount = 1;
+            } else {
+                state.streakCount = 1;
+            }
+            state.lastSavedDate = todayStr;
+
+            // Save Progress
+            state.currentSavings += state.perStepAmount;
+            state.history.unshift({
+                amount: state.perStepAmount,
+                datetime: datetimeFormatted
+            });
+
+            saveState();
+
+            closeModal(elements.alarmTriggerModal);
+            
+            elements.successAmountText.textContent = `+฿${state.perStepAmount.toLocaleString()}`;
+            elements.successStreakCount.textContent = state.streakCount;
+            openModal(elements.successModal);
+
+            soundFx.playSuccess();
+            if (typeof confetti === 'function') {
+                confetti({ particleCount: 70, spread: 60, origin: { y: 0.7 } });
+            }
+        }
+
+        // Modal Helpers
+        function openModal(modal) {
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            const childDiv = modal.querySelector('div');
+            if (childDiv) {
+                childDiv.classList.remove('scale-95', 'translate-y-full');
+                childDiv.classList.add('scale-100', 'translate-y-0');
+            }
+        }
+
+        function closeModal(modal) {
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            const childDiv = modal.querySelector('div');
+            if (childDiv) {
+                childDiv.classList.remove('scale-100', 'translate-y-0');
+                childDiv.classList.add('scale-95');
+            }
+        }
+
+        // Scheduler Engine for Alarms & Countdown
+        function updateSchedulerAndCountdown() {
+            const now = new Date();
+            const currentFormattedTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            if (now.getSeconds() === 0) {
+                state.alarms.forEach(alarm => {
+                    if (alarm.active && alarm.time === currentFormattedTime) {
+                        triggerAlarm(alarm);
+                    }
+                });
+            }
+
+            let nextAlarmDate = null;
+            let closestAlarmObj = null;
+
+            state.alarms.filter(a => a.active).forEach(alarm => {
+                const [alarmH, alarmM] = alarm.time.split(':').map(Number);
+                let candidateDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), alarmH, alarmM, 0);
+
+                if (candidateDate <= now) {
+                    candidateDate.setDate(candidateDate.getDate() + 1);
+                }
+
+                if (!nextAlarmDate || candidateDate < nextAlarmDate) {
+                    nextAlarmDate = candidateDate;
+                    closestAlarmObj = alarm;
+                }
+            });
+
+            if (nextAlarmDate && closestAlarmObj) {
+                const diffMs = nextAlarmDate - now;
+                const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+                elements.nextAlarmTimeLabel.textContent = `รอบถัดไป: ${closestAlarmObj.time} น.`;
+                elements.countdownDisplay.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                elements.nextAlarmDetailText.textContent = closestAlarmObj.label;
+            } else {
+                elements.nextAlarmTimeLabel.textContent = 'ไม่มีการตั้งเวลาเตือน';
+                elements.countdownDisplay.textContent = '--:--:--';
+                elements.nextAlarmDetailText.textContent = 'กด + ด้านบนเพื่อเพิ่มการเตือน';
+            }
+        }
+
+        // Mobile OS Switcher for Installation Guide
+        window.switchGuideOs = function(os) {
+            triggerHaptic('light');
+            const iosBtn = document.getElementById('tabIosBtn');
+            const androidBtn = document.getElementById('tabAndroidBtn');
+            const iosContent = document.getElementById('iosGuideContent');
+            const androidContent = document.getElementById('androidGuideContent');
+
+            if (os === 'ios') {
+                iosBtn.className = 'w-1/2 py-2 rounded-xl text-xs font-bold text-emerald-400 bg-slate-800 shadow transition-all flex items-center justify-center gap-1.5';
+                androidBtn.className = 'w-1/2 py-2 rounded-xl text-xs font-bold text-slate-400 transition-all flex items-center justify-center gap-1.5';
+                iosContent.classList.remove('hidden');
+                androidContent.classList.add('hidden');
+            } else {
+                androidBtn.className = 'w-1/2 py-2 rounded-xl text-xs font-bold text-cyan-400 bg-slate-800 shadow transition-all flex items-center justify-center gap-1.5';
+                iosBtn.className = 'w-1/2 py-2 rounded-xl text-xs font-bold text-slate-400 transition-all flex items-center justify-center gap-1.5';
+                androidContent.classList.remove('hidden');
+                iosContent.classList.add('hidden');
+            }
+        };
+
+        // Initialize Event Listeners
+        function initEventListeners() {
+            document.body.addEventListener('touchstart', function unlockAudio() {
+                if (!audioCtxUnlocked) {
+                    soundFx.init();
+                    audioCtxUnlocked = true;
+                }
+            }, { once: true });
+
+            elements.enableNotificationBtn.addEventListener('click', requestNotificationPermission);
+            elements.simulateAlarmBtn.addEventListener('click', () => triggerAlarm(state.alarms[0]));
+            elements.quickSaveBtn.addEventListener('click', handleSaveMoney);
+            elements.modalSaveBtn.addEventListener('click', handleSaveMoney);
+            elements.modalSnoozeBtn.addEventListener('click', () => closeModal(elements.alarmTriggerModal));
+            elements.closeSuccessBtn.addEventListener('click', () => closeModal(elements.successModal));
+
+            elements.addAlarmBtn.addEventListener('click', openAddAlarmModal);
+            elements.closeAlarmFormBtn.addEventListener('click', () => closeModal(elements.alarmFormModal));
+            elements.cancelAlarmBtn.addEventListener('click', () => closeModal(elements.alarmFormModal));
+
+            // Alarm Form Submit
+            elements.alarmForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                triggerHaptic('light');
+                const id = elements.inputAlarmId.value || Date.now().toString();
+                const label = elements.inputAlarmLabel.value.trim();
+                const time = elements.inputAlarmTime.value;
+                const repeat = elements.inputAlarmRepeat.value;
+
+                state.alarms.push({ id, label, time, repeat, active: true });
+                saveState();
+                closeModal(elements.alarmFormModal);
+            });
+
+            // Settings Modal Open/Close
+            const openSettings = () => {
+                triggerHaptic('light');
+                document.getElementById('inputGoalTitle').value = state.goalTitle;
+                document.getElementById('inputTargetAmount').value = state.targetAmount;
+                document.getElementById('inputPerStep').value = state.perStepAmount;
+                openModal(elements.settingsModal);
+            };
+
+            elements.navSettingsBtn.addEventListener('click', openSettings);
+            elements.editGoalBtn.addEventListener('click', openSettings);
+            elements.closeSettingsBtn.addEventListener('click', () => closeModal(elements.settingsModal));
+            elements.cancelSettingsBtn.addEventListener('click', () => closeModal(elements.settingsModal));
+
+            elements.settingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                triggerHaptic('light');
+                state.goalTitle = document.getElementById('inputGoalTitle').value.trim();
+                state.targetAmount = parseFloat(document.getElementById('inputTargetAmount').value) || 0;
+                state.perStepAmount = parseFloat(document.getElementById('inputPerStep').value) || 0;
+
+                saveState();
+                closeModal(elements.settingsModal);
+            });
+
+            elements.showInstallGuideBtn.addEventListener('click', () => {
+                triggerHaptic('light');
+                openModal(elements.installGuideModal);
+            });
+            elements.closeInstallGuideBtn.addEventListener('click', () => closeModal(elements.installGuideModal));
+            elements.gotItBtn.addEventListener('click', () => closeModal(elements.installGuideModal));
+        }
+
+        // PWA Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const swCode = `
+                    self.addEventListener('install', (e) => e.waitUntil(self.skipWaiting()));
+                    self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+                    self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request)));
+                `;
+                const blob = new Blob([swCode], { type: 'text/javascript' });
+                navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+            });
+        }
+
+        // App Initialization
+        window.onload = function() {
+            renderUI();
+            initEventListeners();
+            setInterval(updateSchedulerAndCountdown, 1000);
+            updateSchedulerAndCountdown();
+        };
+    </script>
+</body>
+</html>
